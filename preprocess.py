@@ -8,23 +8,18 @@ import config
 import numpy as np
 
 
-def get_average_doc(serialized_corpus, lda):
+def get_average_doc(corpus, nr_topics):
     """
     Calculates the mean document vector in topic space
-    :param serialized_corpus: corpus serialized for random access
-    :param lda: trained lda model
-    :return: avg document dense vector in topic space
+    :param corpus: list of sparse documents
+    :return: avg document dense vector
     """
-    nr_docs = serialized_corpus.num_docs
-    nr_topics = lda.num_topics
-
+    nr_docs = len(corpus)
     avg_z = [0 for _ in range(nr_topics)]
     for doc in corpus:
-        z_sparse = lda[doc]
-        for entry in z_sparse:
-            avg_z[entry[0]] += entry[1]
-
-    avg_z = [i/nr_topics for i in avg_z]
+        for topic in doc:
+            avg_z[topic[0]] += topic[1]
+    avg_z = [i/nr_docs for i in avg_z]
 
     return avg_z
 
@@ -44,7 +39,7 @@ def get_reduced_word_representation(x, words):
     x_red = []
     for i in x:
         if i[0] in w2w_red.keys():
-            x_red.append(w2w_red[i[0]], i[1])
+            x_red.append((w2w_red[i[0]], i[1]))
 
     return x_red
 
@@ -58,7 +53,7 @@ if __name__ == '__main__':
     corpus = gensim.corpora.UciCorpus(config.corpus_file, config.vocab_file)
     id2word = corpus.create_dictionary()
 
-    do_lda = False
+    do_lda = True
     if do_lda:
         # extract 50 LDA topics
         lda = gensim.models.ldamodel.LdaModel(
@@ -74,32 +69,48 @@ if __name__ == '__main__':
     words = set()
     for topic_id in range(config.nr_topics):
         words_for_topic = lda.get_topic_terms(topicid=topic_id, topn=config.nr_top_words_per_topic)
+        words_for_topic = [term for term, val in words_for_topic]
         words |= set(words_for_topic)
     words = sorted(list(words))
 
     gensim.corpora.UciCorpus.serialize(config.serialized_corpus_file, corpus)
 
-    # Calculate mean centroid centroid
-    z0 = get_average_doc(corpus, lda)
-
     corpus_x = []  # Documents in word space, with reduced dimensionality
     corpus_z = []  # Documents in topic space
+    max_x = 0 # Normalization factor
+    max_z = 0 # Normalization factor
     count = 0
     for doc in corpus:
         count += 1
         if count % 1000 == 0:
             print("Processing document %d" % count)
+
         x = get_reduced_word_representation(doc, words)
-        corpus_x.append(x)
-        z = lda[doc]
-        corpus_z.append(z)
+        if x:
+            max_x = max(max_x, max([val for dim, val in x]))
+            corpus_x.append(x)
+
+            z = lda[doc]
+            max_z = max(max_z, max([val for dim, val in z]))
+            corpus_z.append(z)
+
+    # Normalize
+    for i in range(len(corpus_x)):
+        for j in range(len(corpus_x[i])):
+            corpus_x[i][j] = (corpus_x[i][j][0], corpus_x[i][j][1]/max_x)
+        for j in range(len(corpus_z[i])):
+            corpus_z[i][j] = (corpus_z[i][j][0], corpus_z[i][j][1]/max_z)
+
+    # Calculate mean centroid centroid
+    z0 = get_average_doc(corpus_z, config.nr_topics)
+    z0 /= max_z
 
     # Save prepared corpus
     to_save = {
-        'x' : corpus_x,
-        'z' : corpus_z,
-        'z0' : z0,
-        'dim_x' : len(words),
-        'dim_z' : config.nr_topics
+        'x': corpus_x,
+        'z': corpus_z,
+        'z0': z0,
+        'dim_x': len(words),
+        'dim_z': config.nr_topics
     }
     pickle.dump(to_save, open(config.lda_file, "wb"))

@@ -52,3 +52,5 @@ __pycache__
 data
 output
 simulation_outcome.npy
+*.npy
+.ipynb_checkpoints/analysis-checkpoint.ipynb
