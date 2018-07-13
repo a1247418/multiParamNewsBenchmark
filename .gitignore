@@ -49,8 +49,12 @@ Temporary Items
 
 
 __pycache__
+.idea
 data
 output
 simulation_outcome.npy
 *.npy
 .ipynb_checkpoints/analysis-checkpoint.ipynb
+*.ipynb
+*.ipynb
+analysis.ipynb

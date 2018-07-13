@@ -8,14 +8,14 @@ import config
 import numpy as np
 
 
-def get_average_doc(corpus, nr_topics):
+def get_average_doc(corpus, dim):
     """
-    Calculates the mean document vector in topic space
+    Calculates the mean document vector in the corpus of dimensionality dim
     :param corpus: list of sparse documents
     :return: avg document dense vector
     """
     nr_docs = len(corpus)
-    avg_z = [0 for _ in range(nr_topics)]
+    avg_z = [0 for _ in range(dim)]
     for doc in corpus:
         for topic in doc:
             avg_z[topic[0]] += topic[1]
@@ -53,17 +53,27 @@ if __name__ == '__main__':
     corpus = gensim.corpora.UciCorpus(config.corpus_file, config.vocab_file)
     id2word = corpus.create_dictionary()
 
-    do_lda = True
+    nr_words_in_corpus = len(corpus)
+
+    do_lda = config.do_lda
+    if not do_lda:
+        print("Loading LDA from file.")
+        try:
+            lda = pickle.load(open(config.in_path + "lda.obj", "rb"))
+        except:
+            print("Loading unsuccessful.")
+            do_lda = True
     if do_lda:
+        print("Calculating LDA.")
         # extract 50 LDA topics
         lda = gensim.models.ldamodel.LdaModel(
             corpus=corpus,
             id2word=id2word,
-            num_topics=config.nr_topics)
+            num_topics=config.nr_topics,
+            alpha='auto',
+            eval_every=10)
 
         pickle.dump(lda, open(config.in_path+"lda.obj", "wb"))
-    else:
-        lda = pickle.load(open(config.in_path+"lda.obj", "rb"))
 
     # Select the X highest ranking words in each topic, merging them to a set
     words = set()
@@ -72,6 +82,8 @@ if __name__ == '__main__':
         words_for_topic = [term for term, val in words_for_topic]
         words |= set(words_for_topic)
     words = sorted(list(words))
+
+    print("Selected %d words for document representation." %len(words))
 
     gensim.corpora.UciCorpus.serialize(config.serialized_corpus_file, corpus)
 
@@ -94,22 +106,25 @@ if __name__ == '__main__':
             max_z = max(max_z, max([val for dim, val in z]))
             corpus_z.append(z)
 
-    # Normalize
-    for i in range(len(corpus_x)):
-        for j in range(len(corpus_x[i])):
-            corpus_x[i][j] = (corpus_x[i][j][0], corpus_x[i][j][1]/max_x)
-        for j in range(len(corpus_z[i])):
-            corpus_z[i][j] = (corpus_z[i][j][0], corpus_z[i][j][1]/max_z)
-
     # Calculate mean centroid centroid
     z0 = get_average_doc(corpus_z, config.nr_topics)
-    z0 /= max_z
+    x0 = get_average_doc(corpus_x, len(words))
+
+    # Normalize
+    if config.normalize_outputs:
+        for i in range(nr_words_in_corpus):
+            for j in range(len(corpus_x[i])):
+                corpus_x[i][j] = (corpus_x[i][j][0], corpus_x[i][j][1]/max_x)
+            for j in range(len(corpus_z[i])):
+                corpus_z[i][j] = (corpus_z[i][j][0], corpus_z[i][j][1]/max_z)
+        z0 /= max_z
 
     # Save prepared corpus
     to_save = {
         'x': corpus_x,
         'z': corpus_z,
         'z0': z0,
+        'x0': x0,
         'dim_x': len(words),
         'dim_z': config.nr_topics
     }

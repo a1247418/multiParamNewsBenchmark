@@ -2,16 +2,17 @@ import os
 
 # Simulation
 default_k = 10
-default_C1 = 50
-default_C2 = 6
+default_C = 50
 default_nr_simulations = 1
-default_simulation_type = "multi" # "binary" #
+default_parametric_treatment = True  # Whether to simulate only a binary treatment, or a parametric one as well.
 generate_testset = True
 
 # Preprocessing
+do_lda = False  # Set to false if there already exists a LDA file
 nr_topics = 50
 nr_documents = 5000
 nr_top_words_per_topic = 100
+normalize_outputs = False #  Normalize x and z
 
 # Paths
 base_path = os.getcwd()

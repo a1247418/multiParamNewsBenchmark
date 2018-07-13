@@ -7,32 +7,55 @@ import config
 
 import numpy as np
 
-SIM_BIN = "binary"
-SIM_MUL = "multi"
 
-def simulate_outcomes(C1, C2, t, z, z0, z1, z2):
-    etaF = np.random.normal(0, 1)
-    etaCF = np.random.normal(0, 1)
+def simulate_outcomes(C, z, centroids, strengths):
+    nr_treatments = len(centroids)
+    mu = np.zeros(nr_treatments)
+    y = np.zeros(nr_treatments)
 
-    mu = [0, 0, 0]
-    mu[0] = C1*np.dot(z, z0)
-    mu[1] = mu[0] + C1*(np.dot(z, z1))
-    mu[2] = mu[0] + C1*(C2 * np.dot(z, z2))
+    mu[0] = 0
+    for i in range(nr_treatments):
+        mu[i] = mu[0] + C * strengths[i] * np.dot(z, centroids[i])
+        y[i] = mu[i] + np.random.normal(0, 1)
 
-    yF = etaF + (mu[1] if t==1 else mu[0])
-    yCF = etaCF + (mu[0] if t==0 else mu[1])
-
-    return yF, yCF, mu[0], mu[1]
+    return mu, y
 
 
-def calc_treatment_probability(k, z, z0, z1):
-    dot_zz0 = np.dot(z, z0)
-    dot_zz1 = np.dot(z, z1)
+def calc_treatment_probability(k, z, centroids):
+    """ Returns the normalized weight of each treatment option. """
+    nr_treatments = len(centroids)
+    term = np.zeros([nr_treatments], dtype=np.float64)
 
-    numerator = np.power(np.e, k*dot_zz1)
-    denominator = np.power(np.e, k*dot_zz0) + numerator
+    for i in range(nr_treatments):
+        term[i] = np.power(np.e, k * np.dot(z, centroids[i]))
+    term_sum = sum(term)
 
-    return numerator/denominator
+    p = np.zeros([nr_treatments])
+
+    for i in range(nr_treatments):
+        p[i] = term[i] / term_sum
+
+    return p / sum(p)
+
+
+def sample_treatment(probability_weights):
+    """
+    Returns an integer >=0 identifying the treatment, selected according to the probability weights.
+    :param probability_weights: Vector of weights summing to 1.
+    :return: Treatment ID
+    """
+    assert 0.99 < sum(probability_weights) < 1.01
+
+    nr_options = len(probability_weights)
+
+    rv = random.random()
+
+    t_id = 0
+    for i in range(nr_options-1):
+        if rv >= sum(probability_weights[:i + 1]):
+            t_id = i + 1
+
+    return t_id
 
 
 def sparse_to_dense(x, nr_dims):
@@ -48,32 +71,53 @@ def sparse_to_dense(x, nr_dims):
     return x_dense
 
 
-if __name__ == '__main__':
-    simulytion_type = config.default_simulation_type
-    nr_simulations = config.default_nr_simulations
-    k = config.default_k
-    C1 = config.default_C1
-    C2 = config.default_C2
+def circular_clamp(low, high, value):
+    ''' Clamps the value between low and high, but in a circular way. '''
+    assert high - low > 0
 
+    ret = value
+    while ret > high:
+        ret = low + (ret % high)
+    while ret < low:
+        ret = high - (low - ret)
+    return ret
+
+
+if __name__ == '__main__':
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    random.seed()
+
+    ''' Get the default parameters. '''
+    parametric_treatment = config.default_parametric_treatment
+    nr_simulations = config.default_nr_simulations
+    kappa = config.default_k
+    C = config.default_C
+
+    # TODO: Rethink input params.
+    ''' Read parameters from console arguments. '''
     nr_arguments = len(sys.argv)
     if nr_arguments > 1:
-        simulytion_type = sys.argv[1]
-        if simulytion_type is not SIM_BIN and simulytion_type is not SIM_MUL:
-            print("nr_simulations must be either '%s' or '%s'", (SIM_BIN, SIM_MUL))
+        parametric_treatment = sys.argv[1]
+        if parametric_treatment != 0 and parametric_treatment != 1:
+            print("parametric_treatment must be either 0 or 1")
+            parametric_treatment = config.default_parametric_treatment
         if nr_arguments > 2:
             try:
                 nr_simulations = int(sys.argv[2])
             except:
                 print("nr_simulations must be integer")
 
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    are_treatments_param = [False, False]  # False: binary, True: parametric
+    if parametric_treatment:
+        are_treatments_param.append(True)
 
-    random.seed()
-
+    ''' Load data '''
+    print("Loading corpus...")
     corpus = pickle.load(open(config.lda_file, 'rb'))
     corpus_x = corpus['x']
     corpus_z = corpus['z']
     z0 = corpus['z0']
+    x0 = corpus['x0']
 
     dim_x = corpus['dim_x']
     dim_z = corpus['dim_z']
@@ -85,75 +129,96 @@ if __name__ == '__main__':
     if config.generate_testset:
         set_types.append("test")
 
-    sample_x_all = np.zeros([sample_size, dim_x, nr_simulations])  # Documents in word space, with reduced dimensionality
+    ''' Simulate nr_simulations many samples of the data. '''
+    nr_treatments = len(are_treatments_param)
+    sample_x_all = np.zeros(
+        [sample_size, dim_x, nr_simulations])  # Documents in word space, with reduced dimensionality
+    sample_z_all = np.zeros(
+        [sample_size, dim_z, nr_simulations])  # Documents in topic space, with reduced dimensionality
     sample_t_all = np.zeros([sample_size, nr_simulations])  # Treatment assignment
-    sample_mu0_all = np.zeros([sample_size, nr_simulations])  # True control outcome
-    sample_mu1_all = np.zeros([sample_size, nr_simulations])  # True treatment outcome
-    sample_yF_all = np.zeros([sample_size, nr_simulations])  # Factual outcome
-    sample_yCF_all = np.zeros([sample_size, nr_simulations])  # Counterfactual outcome
-
+    sample_mu_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Outcome truth
+    sample_y_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Noisy outcome
+    sample_strength_all = np.zeros([sample_size, nr_treatments, nr_simulations])
     for set_type in set_types:
         for sim in range(nr_simulations):
+            print("Simulation %d/%d of %s data" % (sim + 1, nr_simulations, set_type))
             # Sample X documents
             doc_ids = sorted(random.sample(range(nr_docs), sample_size))
 
-            # Sample "treated" centroid
-            # Mobile decive
-            z1_id = random.randint(0, nr_docs-1)
-            z1 = sparse_to_dense(corpus_z[z1_id], dim_z)
-            # Time of reading
-            z2_id = random.randint(0, nr_docs-1)
-            z2 = sparse_to_dense(corpus_z[z2_id], dim_z)
+            # Sample "treated" centroids
+            treatment_centroids = [z0]
+            treatment_centroids_x = [x0]
+            for i in range(nr_treatments-1):  # -1 since z0 is given
+                centroid_id = random.randint(0, nr_docs - 1)
+                centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
+                treatment_centroids.append(centroid)
+
+                centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
+                treatment_centroids_x.append(centroid)
+
+
+            for i in range(nr_treatments):
+                treatment_centroids[i] /= sum(treatment_centroids[i])
 
             sample_x = np.zeros([sample_size, dim_x])  # Documents in word space, with reduced dimensionality
             sample_z = np.zeros([sample_size, dim_z])  # Documents in topic space
-            sample_p = np.zeros([sample_size])  # Treatment probability
             sample_t = np.zeros([sample_size])  # Treatment assignment
-            sample_mu0 = np.zeros([sample_size])  # True control outcome
-            sample_mu1 = np.zeros([sample_size])  # True treatment outcome
-            sample_yF = np.zeros([sample_size])  # Factual outcome
-            sample_yCF = np.zeros([sample_size])  # Counterfactual outcome
-            sample_strength = np.zeros([sample_size])  # Time effect on y
+            sample_mu = np.zeros([sample_size, nr_treatments])  # True outcome
+            sample_y = np.zeros([sample_size, nr_treatments])  # Noisy outcome
+            sample_strength = np.zeros([sample_size, nr_treatments])  # Time effect on y
             count = 0
             for d in doc_ids:
                 x = sparse_to_dense(corpus_x[d], dim_x)
                 sample_x[count] = x
                 z = sparse_to_dense(corpus_z[d], dim_z)
+                z /= sum(z)
                 sample_z[count] = z
-                p = calc_treatment_probability(k, z, z0, z1)
-                sample_p[count] = p
-                t = random.random() < p
+                p = calc_treatment_probability(kappa, z, treatment_centroids)
+                t = sample_treatment(p)
                 sample_t[count] = t
-                if SIM_MUL:
-                    sample_strength[count] = np.dot(z, z2)
-                yF, yCF, mu0, mu1 = simulate_outcomes(C1, C2, t, z, z0, z1, z2)
-                sample_yF[count] = yF
-                sample_yCF[count] = yCF
-                sample_mu0[count] = mu0
-                sample_mu1[count] = mu1
+                sample_strength[count] = np.ones([nr_treatments])
+                for i in range(nr_treatments):
+                    if are_treatments_param[i]:
+                        sample_strength[count][i] = circular_clamp(0, 1, 8 * np.dot(z, treatment_centroids[
+                            i]) + np.random.normal(0, 1))
+                mu, y = simulate_outcomes(C, z, treatment_centroids, sample_strength[count])
+                sample_y[count] = y
+                sample_mu[count] = mu
 
                 count += 1
 
-            sample_x_all[:,:,sim] = sample_x
-            sample_t_all[:,sim] = sample_t
-            sample_mu0_all[:,sim] = sample_mu0
-            sample_mu1_all[:,sim] = sample_mu1
-            sample_yF_all[:,sim] = sample_yF
-            sample_yCF_all[:,sim] = sample_yCF
+            ''' Gather samples '''
+            sample_z_all[:, :, sim] = sample_z
+            sample_x_all[:, :, sim] = sample_x
+            sample_t_all[:, sim] = sample_t
+            sample_mu_all[:, :, sim] = sample_mu
+            sample_y_all[:, :, sim] = sample_y
+            sample_strength_all[:, :, sim] = sample_strength
 
+            ''' Save data set '''
             to_save = {
+                'centroids': treatment_centroids,  # For analysis purposes only
+                'centroids_x': treatment_centroids_x,  # For analysis purposes only
+                'z': sample_z_all,
                 'x': sample_x_all,
                 't': sample_t_all,
-                'yf': sample_yF_all,
-                'ycf': sample_yCF_all,
-                'mu0': sample_mu0_all,
-                'mu1': sample_mu1_all
-                #'ymul': np.array(1, dtype=np.int64),
-                #'yadd' : np.array(0, dtype=np.int64),
-                #'ate': np.array(4, dtype=np.int64),
+                'y': sample_y_all,
+                'mu': sample_mu_all,
+                's': sample_strength_all,
+                'param': are_treatments_param  # Whether a treatment is parametric
             }
-            if SIM_MUL:
-                to_save['s'] = sample_strength
+
+            # Print sample
+            ''' print("Printing head of data: ")
+            nr_lines = 10
+            for k in to_save.keys():
+                line = k + "\t"
+                for i in range(min(nr_lines, len(to_save[k]))):
+                    line += str(to_save[k][i])
+                print(line)
+            '''
 
             # Save a simulation run
-            np.save("simulation_outcome."+set_type, to_save)
+            np.save("simulation_outcome." + set_type, to_save)
+
+            # TODO: offer to save as csv
