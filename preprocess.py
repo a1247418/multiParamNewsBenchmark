@@ -47,7 +47,7 @@ def get_reduced_word_representation(x, words):
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
-    np.random.seed(1)
+    np.random.seed(config.seed)
 
     # load corpus iterator
     corpus = gensim.corpora.UciCorpus(config.corpus_file, config.vocab_file)
