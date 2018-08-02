@@ -2,9 +2,12 @@ import os
 
 # Simulation
 seed = 0  # Random seed
-k = 35  # Treatment assignment parameter
+k = 40  # Treatment assignment parameter
 C = 50  # Outcome generation parameter
-str_const = 4  # Treatment strength generation parameter
+# Treatment strength generation parameters
+str_const = 4
+str_mean = 0.2
+str_std = 0.05
 nr_documents = 5000  # Nr topics per sample
 nr_simulations = 1
 treatment_types = [0, 1, 0]  # List of treatments to simulate. binary = 0, parametric = 1

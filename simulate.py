@@ -186,7 +186,7 @@ if __name__ == '__main__':
                 for i in range(1, nr_treatments):
                     if treatment_types[i-1]:
                         sample_strength[count][i] = clamp(0, 1, config.str_const * np.dot(z, treatment_centroids_z[
-                            i]) + np.random.normal(0.5, 0.05))
+                            i]) + np.random.normal(config.str_mean, config.str_std))
                 mu, y = simulate_outcomes(C, z, treatment_centroids_z, sample_strength[count])
                 sample_y[count] = y
                 sample_mu[count] = mu
