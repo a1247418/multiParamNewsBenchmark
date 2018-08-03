@@ -2,7 +2,7 @@ import os
 
 # Simulation
 seed = 0  # Random seed
-k = 40  # Treatment assignment parameter
+k = 35  # Treatment assignment parameter
 C = 50  # Outcome generation parameter
 # Treatment strength generation parameters
 str_const = 4

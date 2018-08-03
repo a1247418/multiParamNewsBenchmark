@@ -3,8 +3,9 @@
 Semi-synthetic dataset based on the NY Times corpus available at UCI (Newman, 2008) and the simulation described in 
 "Learning Representations for Counterfactual Inference"[1].
 
-The dataset realizes an arbitrary number of binary or parametric 
-treatment options.
+The benchmark realizes an arbitrary number of binary or parametric 
+treatment options. The covariates are based on real-world data, but the 
+treatment assignments and outcomes are be synthetic.
 
 ## BEFORE RUNNING
 Before simulating the data you need to download the NY Times corpus ( https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/ ) 
