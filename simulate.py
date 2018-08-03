@@ -141,29 +141,27 @@ if __name__ == '__main__':
     sample_mu_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Outcome truth
     sample_y_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Noisy outcome
     sample_strength_all = np.zeros([sample_size, nr_treatments, nr_simulations])
-    # For training set and possibly test set:
-    for set_type in set_types:
-        # Resimulate nr_simulations times with the same data, but newly chosen centroids/treatmen assignments/outcomes
-        for sim in range(nr_simulations):
+
+    # Resimulate nr_simulations times with the same data, but newly chosen centroids/treatment assignments/outcomes
+    for sim in range(nr_simulations):
+        # Sample X documents
+        doc_ids = sorted(random.sample(range(nr_docs), sample_size))
+
+        # Sample centroids for each treatment
+        treatment_centroids_z = np.array([z0])
+        treatment_centroids_x = np.array([x0])
+        for i in range(nr_treatments-1):  # -1 since z0 is given
+            centroid_id = random.randint(0, nr_docs - 1)
+            # Centroid in topic space
+            centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
+            treatment_centroids_z = np.vstack([treatment_centroids_z, centroid])
+            # Centroid in word space
+            centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
+            treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
+
+        # For training set and possibly test set:
+        for set_type in set_types:
             print("Simulation %d/%d of %s data" % (sim + 1, nr_simulations, set_type))
-            # Sample X documents
-            doc_ids = sorted(random.sample(range(nr_docs), sample_size))
-
-            # Sample centroids for each treatment
-            treatment_centroids_z = np.array([z0])
-            treatment_centroids_x = np.array([x0])
-            for i in range(nr_treatments-1):  # -1 since z0 is given
-                centroid_id = random.randint(0, nr_docs - 1)
-                # Centroid in topic space
-                centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
-                treatment_centroids_z = np.vstack([treatment_centroids_z, centroid])
-                # Centroid in word space
-                centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
-                treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
-
-            #for i in range(nr_treatments):
-            #    treatment_centroids_z[i] /= sum(treatment_centroids_z[i])
-
             # For each document: get its data vector, treatment assignment, and outcome
             sample_x = np.zeros([sample_size, dim_x])  # Documents in word space, with reduced dimensionality
             sample_z = np.zeros([sample_size, dim_z])  # Documents in topic space
@@ -176,7 +174,6 @@ if __name__ == '__main__':
                 x = sparse_to_dense(corpus_x[d], dim_x)
                 sample_x[count] = x
                 z = sparse_to_dense(corpus_z[d], dim_z)
-                #z /= sum(z)
                 sample_z[count] = z
                 p = calc_treatment_probability(kappa, z, treatment_centroids_z)
                 t = sample_treatment(p)
