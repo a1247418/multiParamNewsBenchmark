@@ -12,6 +12,7 @@ nr_documents = 5000  # Nr topics per sample
 nr_simulations = 1
 treatment_types = [0, 1, 0]  # List of treatments to simulate. binary = 0, parametric = 1
 generate_testset = True
+nr_cf_samples = 5  # Number of additional counterfactual samples for parametric treatments
 
 # Preprocessing
 do_lda = True  # Set to false if there already exists a LDA file

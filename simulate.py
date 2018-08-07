@@ -5,23 +5,31 @@ import config
 import numpy as np
 
 
-def simulate_outcomes(C, z, centroids, strengths):
+def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
     """
     Simulates the outcome for a single unit/treatment pair.
     :param C: Weighting constant
     :param z: A unit in topic space
     :param centroids: Treatment centroids in topic space
     :param strengths: Treatment strength
+    :param for_treatment: If none, the output is calculated for each treatment. If integer, all outputs are for
+        the treatment with this id.
     :return: mu, y Where mu is the true treatment effect, and y is the noisy measurement
     """
-    nr_treatments = len(centroids)
+    nr_treatments = len(strengths)
     mu = np.zeros(nr_treatments)
     y = np.zeros(nr_treatments)
 
-    mu[0] = 0
-    for i in range(nr_treatments):
-        mu[i] = mu[0] + C * strengths[i] * np.dot(z, centroids[i])
-        y[i] = mu[i] + np.random.normal(0, 1)
+    if for_treatment is None:
+        mu[0] = 0
+        for i in range(nr_treatments):
+            mu[i] = mu[0] + C * strengths[i] * np.dot(z, centroids[i])
+            y[i] = mu[i] + np.random.normal(0, 1)
+    else:
+        mu0 = C * np.dot(z, centroids[0])
+        for i in range(nr_treatments):
+            mu[i] = mu0 + C * strengths[i] * np.dot(z, centroids[for_treatment])
+            y[i] = mu[i] + np.random.normal(0, 1)
 
     return mu, y
 
@@ -64,6 +72,18 @@ def sample_treatment(probability_weights):
             t_id = i + 1
 
     return t_id
+
+
+def sample_treatment_strength(z, centroid_z):
+    """
+    Returns a nonnegative number [0,1] biased by the dot product of the given vectors.
+    :param z: Document vector in topic space
+    :param centroid_z: Treatment centroid in topic space
+    :return: Treatment strength
+    """
+    strength = clamp(0, 1, config.str_const * np.dot(z, centroid_z) +
+                     np.random.normal(config.str_mean, config.str_std))
+    return strength
 
 
 def sparse_to_dense(x, nr_dims):
@@ -112,7 +132,9 @@ if __name__ == '__main__':
     kappa = config.k
     C = config.C
     treatment_types = config.treatment_types
-    
+    nr_cf_samples = config.nr_cf_samples
+    nr_parametric_treatments = np.sum(treatment_types)
+
     ''' Load data '''
     print("Loading corpus...")
     corpus = pickle.load(open(config.lda_file, 'rb'))
@@ -141,26 +163,29 @@ if __name__ == '__main__':
     sample_mu_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Outcome truth
     sample_y_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Noisy outcome
     sample_strength_all = np.zeros([sample_size, nr_treatments, nr_simulations])
+    sample_mu_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
+    sample_y_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
+    sample_strength_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
+    # Sample documents & centroids - these stay fixed for all simulations and sets
+    # Sample X documents
+    doc_ids = sorted(random.sample(range(nr_docs), sample_size))
 
-    # Resimulate nr_simulations times with the same data, but newly chosen centroids/treatment assignments/outcomes
-    for sim in range(nr_simulations):
-        # Sample X documents
-        doc_ids = sorted(random.sample(range(nr_docs), sample_size))
+    # Sample centroids for each treatment
+    treatment_centroids_z = np.array([z0])
+    treatment_centroids_x = np.array([x0])
+    for i in range(nr_treatments-1):  # -1 since z0 is given
+        centroid_id = random.randint(0, nr_docs - 1)
+        # Centroid in topic space
+        centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
+        treatment_centroids_z = np.vstack([treatment_centroids_z, centroid])
+        # Centroid in word space
+        centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
+        treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
 
-        # Sample centroids for each treatment
-        treatment_centroids_z = np.array([z0])
-        treatment_centroids_x = np.array([x0])
-        for i in range(nr_treatments-1):  # -1 since z0 is given
-            centroid_id = random.randint(0, nr_docs - 1)
-            # Centroid in topic space
-            centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
-            treatment_centroids_z = np.vstack([treatment_centroids_z, centroid])
-            # Centroid in word space
-            centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
-            treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
-
-        # For training set and possibly test set:
-        for set_type in set_types:
+    # For training set and possibly test set:
+    for set_type in set_types:
+        # Resimulate nr_simulations times with the same data, but newly chosen treatment assignments/outcomes
+        for sim in range(nr_simulations):
             print("Simulation %d/%d of %s data" % (sim + 1, nr_simulations, set_type))
             # For each document: get its data vector, treatment assignment, and outcome
             sample_x = np.zeros([sample_size, dim_x])  # Documents in word space, with reduced dimensionality
@@ -169,8 +194,13 @@ if __name__ == '__main__':
             sample_mu = np.zeros([sample_size, nr_treatments])  # True outcome
             sample_y = np.zeros([sample_size, nr_treatments])  # Noisy outcome
             sample_strength = np.zeros([sample_size, nr_treatments])  # Time effect on y
-            count = 0
-            for d in doc_ids:
+
+            # Additional samples for parametric treatments to cover the whole range of counterfactual options
+            sample_mu_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])  # True outcome
+            sample_y_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])  # Noisy outcome
+            sample_strength_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])  # Time effect on y
+
+            for count, d in enumerate(doc_ids):
                 x = sparse_to_dense(corpus_x[d], dim_x)
                 sample_x[count] = x
                 z = sparse_to_dense(corpus_z[d], dim_z)
@@ -181,14 +211,23 @@ if __name__ == '__main__':
                 # Calculate treatment strength for parametric treatments. For all others it's 1.
                 sample_strength[count] = np.ones([nr_treatments])
                 for i in range(1, nr_treatments):
+                    # If treatment is parametric
                     if treatment_types[i-1]:
-                        sample_strength[count][i] = clamp(0, 1, config.str_const * np.dot(z, treatment_centroids_z[
-                            i]) + np.random.normal(config.str_mean, config.str_std))
+                        sample_strength[count, i] = sample_treatment_strength(z, treatment_centroids_z[i])
                 mu, y = simulate_outcomes(C, z, treatment_centroids_z, sample_strength[count])
                 sample_y[count] = y
                 sample_mu[count] = mu
 
-                count += 1
+                # Additional parametric samples
+                param_idx = 0
+                for t_type in treatment_types:
+                    if t_type == 1:
+                        sample_strength_param[count, param_idx] = np.random.random(nr_cf_samples)
+                        mu_pcf, y_pcf = simulate_outcomes(C, z, treatment_centroids_z,
+                                                          sample_strength_param[count][param_idx], for_treatment=t_type)
+                        sample_y_param[count, param_idx] = y_pcf
+                        sample_mu_param[count, param_idx] = mu_pcf
+                        param_idx += 1
 
             ''' Gather samples '''
             sample_z_all[:, :, sim] = sample_z
@@ -197,6 +236,9 @@ if __name__ == '__main__':
             sample_mu_all[:, :, sim] = sample_mu
             sample_y_all[:, :, sim] = sample_y
             sample_strength_all[:, :, sim] = sample_strength
+            sample_mu_param_all[:, :, :, sim] = sample_mu_param
+            sample_y_param_all[:, :, :, sim] = sample_y_param
+            sample_strength_param_all[:, :, :, sim] = sample_strength_param
 
         ''' Save data set '''
         to_save = {
@@ -208,7 +250,10 @@ if __name__ == '__main__':
             'y': sample_y_all,
             'mu': sample_mu_all,
             's': sample_strength_all,
-            'param': treatment_types  # Whether a treatment is parametric
+            'y_pcf': sample_y_param_all,
+            'mu_pcf': sample_mu_param_all,
+            's_pcf': sample_strength_param_all,
+            'treatment_types': treatment_types  # Whether a treatment is parametric
         }
 
         # Save all simulation runs for the current data set
