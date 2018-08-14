@@ -149,23 +149,8 @@ if __name__ == '__main__':
     nr_docs = len(corpus_x)
     sample_size = config.nr_documents
 
-    set_types = ["train"]
-    if config.generate_testset:
-        set_types.append("test")
-
     ''' Simulate nr_simulations many samples of the data. '''
     nr_treatments = len(treatment_types) + 1  # Here, the control group is also counted as treatment
-    sample_x_all = np.zeros(
-        [sample_size, dim_x, nr_simulations])  # Documents in word space, with reduced dimensionality
-    sample_z_all = np.zeros(
-        [sample_size, dim_z, nr_simulations])  # Documents in topic space, with reduced dimensionality
-    sample_t_all = np.zeros([sample_size, nr_simulations])  # Treatment assignment
-    sample_mu_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Outcome truth
-    sample_y_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Noisy outcome
-    sample_strength_all = np.zeros([sample_size, nr_treatments, nr_simulations])
-    sample_mu_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
-    sample_y_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
-    sample_strength_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
     # Sample documents & centroids - these stay fixed for all simulations and sets
     # Sample X documents
     doc_ids = sorted(random.sample(range(nr_docs), sample_size))
@@ -183,7 +168,20 @@ if __name__ == '__main__':
         treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
 
     # For training set and possibly test set:
-    for set_type in set_types:
+    for set_type in config.sets:
+        nr_simulations = config.nr_simulations[set_type]
+        sample_x_all = np.zeros(
+            [sample_size, dim_x, nr_simulations])  # Documents in word space, with reduced dimensionality
+        sample_z_all = np.zeros(
+            [sample_size, dim_z, nr_simulations])  # Documents in topic space, with reduced dimensionality
+        sample_t_all = np.zeros([sample_size, nr_simulations])  # Treatment assignment
+        sample_mu_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Outcome truth
+        sample_y_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Noisy outcome
+        sample_strength_all = np.zeros([sample_size, nr_treatments, nr_simulations])
+        sample_mu_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
+        sample_y_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
+        sample_strength_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
+
         # Resimulate nr_simulations times with the same data, but newly chosen treatment assignments/outcomes
         for sim in range(nr_simulations):
             print("Simulation %d/%d of %s data" % (sim + 1, nr_simulations, set_type))
@@ -236,6 +234,7 @@ if __name__ == '__main__':
             sample_mu_all[:, :, sim] = sample_mu
             sample_y_all[:, :, sim] = sample_y
             sample_strength_all[:, :, sim] = sample_strength
+
             sample_mu_param_all[:, :, :, sim] = sample_mu_param
             sample_y_param_all[:, :, :, sim] = sample_y_param
             sample_strength_param_all[:, :, :, sim] = sample_strength_param
