@@ -54,3 +54,4 @@ data/*
 output
 *.npy
 *.ipynb
+*.csv

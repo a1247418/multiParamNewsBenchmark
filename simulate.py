@@ -1,8 +1,11 @@
+import csv
 import random
 import pickle
 import logging
 import config
+import struct
 import numpy as np
+import pdb
 
 
 def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
@@ -67,7 +70,7 @@ def sample_treatment(probability_weights):
     rv = random.random()
 
     t_id = 0
-    for i in range(nr_treatments-1):
+    for i in range(nr_treatments - 1):
         if rv >= sum(probability_weights[:i + 1]):
             t_id = i + 1
 
@@ -158,7 +161,7 @@ if __name__ == '__main__':
     # Sample centroids for each treatment
     treatment_centroids_z = np.array([z0])
     treatment_centroids_x = np.array([x0])
-    for i in range(nr_treatments-1):  # -1 since z0 is given
+    for i in range(nr_treatments - 1):  # -1 since z0 is given
         centroid_id = random.randint(0, nr_docs - 1)
         # Centroid in topic space
         centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
@@ -210,7 +213,7 @@ if __name__ == '__main__':
                 sample_strength[count] = np.ones([nr_treatments])
                 for i in range(1, nr_treatments):
                     # If treatment is parametric
-                    if treatment_types[i-1]:
+                    if treatment_types[i - 1]:
                         sample_strength[count, i] = sample_treatment_strength(z, treatment_centroids_z[i])
                 mu, y = simulate_outcomes(C, z, treatment_centroids_z, sample_strength[count])
                 sample_y[count] = y
@@ -243,7 +246,7 @@ if __name__ == '__main__':
         to_save = {
             'centroids_z': treatment_centroids_z,  # For analysis purposes only
             'centroids_x': treatment_centroids_x,  # For analysis purposes only
-            'z': sample_z_all,
+            'z': sample_z_all,  # For analysis purposes only
             'x': sample_x_all,
             't': sample_t_all,
             'y': sample_y_all,
@@ -257,15 +260,55 @@ if __name__ == '__main__':
 
         # Save all simulation runs for the current data set
         if config.save_as_numpy:
+            print("Saving to numpy file...")
             np.save("simulation_outcome." + set_type, to_save)
-        if config.save_as_csv:
+        if config.save_as_bin:
+            print("Saving to binary...")
             def sparsify(vec):
                 sparse_vec = []
                 for i in range(len(vec)):
                     if vec[i] != 0:
                         sparse_vec.append((i, vec[i]))
-            continue
-            # TODO: save as sparse csv
+
+
+            def write2dmatrix(mat, mat_name, set_name):
+                dim0 = mat.shape[0]
+                dim1 = mat.shape[1]
+                n_sim = mat.shape[2]
+
+                for sim in range(n_sim):
+                    with open('simulation_outcome.%s%d.%s' % (set_name, sim, mat_name), 'wb') as binfile:
+                        header = struct.pack('2I', dim0, dim1)
+                        binfile.write(header)
+                        for i in range(dim1):
+                            data = struct.pack('%id' % dim0, *mat[:, i, sim])
+                            binfile.write(data)
+                        binfile.close()
+
+            x2export = np.stack([sample_strength_all[np.arange(sample_size), sample_t_all[:, i].astype(int), i] for i in
+                                 range(nr_simulations)], 1)
+            x2export = np.concatenate([sample_x_all,
+                                       sample_t_all[:, np.newaxis, :],
+                                       x2export[:, np.newaxis, :]], 1)
+            write2dmatrix(x2export, "x", set_type)
+
+            y2export = np.stack([sample_y_all[np.arange(sample_size), sample_t_all[:, i].astype(int), i] for i in
+                                 range(nr_simulations)], 1)
+            y2export = y2export[:, np.newaxis, :]
+            write2dmatrix(y2export, "y", set_type)
+
+            t_cf = []
+            for treatment in treatment_types:
+                if treatment == 1:
+                    t_cf += [treatment for i in range(nr_cf_samples)]
+
+            t_cf = np.tile(np.array(t_cf * sample_size)[:, np.newaxis, np.newaxis], [1, 1, nr_simulations])
+            xpcf2export = np.concatenate([t_cf, np.reshape(sample_strength_param_all, [-1, 1, nr_simulations])], 1)
+            write2dmatrix(xpcf2export, "xcf", set_type)
+
+            ypcf2export = np.reshape(sample_y_param_all, [-1, 1, nr_simulations])
+            write2dmatrix(ypcf2export, "ycf", set_type)
+
         if config.save_as_tfrecord:
             continue
             # TODO: save as tf_record

@@ -12,7 +12,7 @@ nr_documents = 5000  # Nr topics per sample
 sets = ['train', 'test']  # Sets to generate
 nr_simulations = {
     sets[0]: 1,
-    sets[1]: 3
+    sets[1]: 5
 }
 treatment_types = [0, 1]  # List of treatments to simulate. binary = 0, parametric = 1
 nr_cf_samples = 5  # Number of additional counterfactual samples for parametric treatments
@@ -38,5 +38,5 @@ simulation_file = in_path+"simulated_news.csv"
 
 #Saving
 save_as_numpy = True
-save_as_csv = True
+save_as_bin = True # Save as binary file that can be read in e.g. with R
 save_as_tfrecord = True
