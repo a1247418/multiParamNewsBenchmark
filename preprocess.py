@@ -65,13 +65,13 @@ if __name__ == '__main__':
             do_lda = True
     if do_lda:
         print("Calculating LDA.")
-        # extract 50 LDA topics
+        # extract LDA topics
         lda = gensim.models.ldamodel.LdaModel(
             corpus=corpus,
             id2word=id2word,
             num_topics=config.nr_topics,
-            alpha='auto',
-            eval_every=10)
+            eval_every=10,
+            alpha='auto')
 
         pickle.dump(lda, open(config.in_path+"lda.obj", "wb"))
 
@@ -89,8 +89,8 @@ if __name__ == '__main__':
 
     corpus_x = []  # Documents in word space, with reduced dimensionality
     corpus_z = []  # Documents in topic space
-    max_x = 0 # Normalization factor
-    max_z = 0 # Normalization factor
+    max_x = 0  # Normalization factor
+    max_z = 0  # Normalization factor
     count = 0
     for doc in corpus:
         count += 1

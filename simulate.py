@@ -1,11 +1,11 @@
-import csv
 import random
 import pickle
 import logging
 import config
 import struct
+
 import numpy as np
-import pdb
+import scipy.stats
 
 
 def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
@@ -17,7 +17,7 @@ def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
     :param strengths: Treatment strength
     :param for_treatment: If none, the output is calculated for each treatment. If integer, all outputs are for
         the treatment with this id.
-    :return: mu, y Where mu is the true treatment effect, and y is the noisy measurement
+    :return: mu, y Where mu is the true treatment effect, and y is its noisy measurement.
     """
     nr_treatments = len(strengths)
     mu = np.zeros(nr_treatments)
@@ -84,9 +84,17 @@ def sample_treatment_strength(z, centroid_z):
     :param centroid_z: Treatment centroid in topic space
     :return: Treatment strength
     """
-    strength = clamp(0, 1, config.str_const * np.dot(z, centroid_z) +
-                     np.random.normal(config.str_mean, config.str_std))
-    return strength
+
+    mu = config.str_mean
+    sig = config.str_std
+
+    strength = config.str_const * np.dot(z, centroid_z)
+
+    noise = scipy.stats.truncnorm.rvs((-strength - mu) / sig, (1 - strength - mu) / sig, loc=mu, scale=sig, size=1)
+
+    noisy_strength = strength + noise
+
+    return noisy_strength
 
 
 def sparse_to_dense(x, nr_dims):
@@ -99,30 +107,6 @@ def sparse_to_dense(x, nr_dims):
     for i in x:
         x_dense[i[0]] = i[1]
     return x_dense
-
-
-def circular_clamp(low, high, value):
-    ''' Clamps the value between low and high, but in a circular way. '''
-    assert high - low > 0
-
-    ret = value
-    while ret > high:
-        ret = low + (ret % high)
-    while ret < low:
-        ret = high - (low - ret)
-    return ret
-
-
-def clamp(low, high, value):
-    ''' Clamps the value between low and high. '''
-    assert high - low > 0
-
-    ret = value
-    if ret > high:
-        ret = high
-    if ret < low:
-        ret = low
-    return ret
 
 
 if __name__ == '__main__':
@@ -154,67 +138,63 @@ if __name__ == '__main__':
 
     ''' Simulate nr_simulations many samples of the data. '''
     nr_treatments = len(treatment_types) + 1  # Here, the control group is also counted as treatment
-    # Sample documents & centroids - these stay fixed for all simulations and sets
-    # Sample X documents
-    doc_ids = sorted(random.sample(range(nr_docs), sample_size))
-
-    # Sample centroids for each treatment
-    treatment_centroids_z = np.array([z0])
-    treatment_centroids_x = np.array([x0])
-    for i in range(nr_treatments - 1):  # -1 since z0 is given
-        centroid_id = random.randint(0, nr_docs - 1)
-        # Centroid in topic space
-        centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
-        treatment_centroids_z = np.vstack([treatment_centroids_z, centroid])
-        # Centroid in word space
-        centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
-        treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
 
     # For training set and possibly test set:
     for set_type in config.sets:
         nr_simulations = config.nr_simulations[set_type]
-        sample_x_all = np.zeros(
-            [sample_size, dim_x, nr_simulations])  # Documents in word space, with reduced dimensionality
-        sample_z_all = np.zeros(
-            [sample_size, dim_z, nr_simulations])  # Documents in topic space, with reduced dimensionality
-        sample_t_all = np.zeros([sample_size, nr_simulations])  # Treatment assignment
-        sample_mu_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Outcome truth
-        sample_y_all = np.zeros([sample_size, nr_treatments, nr_simulations])  # Noisy outcome
-        sample_strength_all = np.zeros([sample_size, nr_treatments, nr_simulations])
-        sample_mu_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
-        sample_y_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
-        sample_strength_param_all = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples, nr_simulations])
 
         # Resimulate nr_simulations times with the same data, but newly chosen treatment assignments/outcomes
         for sim in range(nr_simulations):
             print("Simulation %d/%d of %s data" % (sim + 1, nr_simulations, set_type))
+
+            # Sample X documents
+            doc_ids = sorted(random.sample(range(nr_docs), sample_size))
+
+            # Sample centroids for each treatment
+            treatment_centroids_z = np.array([z0])
+            treatment_centroids_x = np.array([x0])
+            for i in range(nr_treatments - 1):  # -1 since z0 is given
+                centroid_id = random.randint(0, nr_docs - 1)
+                # Centroid in topic space
+                centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
+                treatment_centroids_z = np.vstack([treatment_centroids_z, centroid])
+                # Centroid in word space
+                centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
+                treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
+
             # For each document: get its data vector, treatment assignment, and outcome
-            sample_x = np.zeros([sample_size, dim_x])  # Documents in word space, with reduced dimensionality
-            sample_z = np.zeros([sample_size, dim_z])  # Documents in topic space
+            sample_x = np.zeros([sample_size, dim_x])  # Documents in word space; reduced dimensions
+            sample_z = np.zeros([sample_size, dim_z])  # Documents in topic space; reduced dimensions
             sample_t = np.zeros([sample_size])  # Treatment assignment
             sample_mu = np.zeros([sample_size, nr_treatments])  # True outcome
             sample_y = np.zeros([sample_size, nr_treatments])  # Noisy outcome
-            sample_strength = np.zeros([sample_size, nr_treatments])  # Time effect on y
+            sample_strength = np.zeros([sample_size, nr_treatments])  # Treatment strength
 
             # Additional samples for parametric treatments to cover the whole range of counterfactual options
-            sample_mu_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])  # True outcome
-            sample_y_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])  # Noisy outcome
-            sample_strength_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])  # Time effect on y
+            sample_mu_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])
+            sample_y_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])
+            sample_strength_param = np.zeros([sample_size, nr_parametric_treatments, nr_cf_samples])
 
+            # Generate data for each sampled document
             for count, d in enumerate(doc_ids):
                 x = sparse_to_dense(corpus_x[d], dim_x)
                 sample_x[count] = x
+
                 z = sparse_to_dense(corpus_z[d], dim_z)
                 sample_z[count] = z
+
                 p = calc_treatment_probability(kappa, z, treatment_centroids_z)
                 t = sample_treatment(p)
+
                 sample_t[count] = t
-                # Calculate treatment strength for parametric treatments. For all others it's 1.
+
+                # Calculate treatment strength for parametric treatments. For binary ones it's 1.
                 sample_strength[count] = np.ones([nr_treatments])
                 for i in range(1, nr_treatments):
                     # If treatment is parametric
                     if treatment_types[i - 1]:
                         sample_strength[count, i] = sample_treatment_strength(z, treatment_centroids_z[i])
+
                 mu, y = simulate_outcomes(C, z, treatment_centroids_z, sample_strength[count])
                 sample_y[count] = y
                 sample_mu[count] = mu
@@ -230,85 +210,67 @@ if __name__ == '__main__':
                         sample_mu_param[count, param_idx] = mu_pcf
                         param_idx += 1
 
-            ''' Gather samples '''
-            sample_z_all[:, :, sim] = sample_z
-            sample_x_all[:, :, sim] = sample_x
-            sample_t_all[:, sim] = sample_t
-            sample_mu_all[:, :, sim] = sample_mu
-            sample_y_all[:, :, sim] = sample_y
-            sample_strength_all[:, :, sim] = sample_strength
 
-            sample_mu_param_all[:, :, :, sim] = sample_mu_param
-            sample_y_param_all[:, :, :, sim] = sample_y_param
-            sample_strength_param_all[:, :, :, sim] = sample_strength_param
+            ''' Save data set '''
+            to_save = {
+                'centroids_z': treatment_centroids_z,  # For analysis purposes only
+                'centroids_x': treatment_centroids_x,  # For analysis purposes only
+                'z': sample_z,  # For analysis purposes only
+                'x': sample_x,
+                't': sample_t,
+                'y': sample_y,
+                'mu': sample_mu,
+                's': sample_strength,
+                'y_pcf': sample_y_param,
+                'mu_pcf': sample_mu_param,
+                's_pcf': sample_strength_param,
+                'treatment_types': treatment_types  # Whether a treatment is parametric
+            }
 
-        ''' Save data set '''
-        to_save = {
-            'centroids_z': treatment_centroids_z,  # For analysis purposes only
-            'centroids_x': treatment_centroids_x,  # For analysis purposes only
-            'z': sample_z_all,  # For analysis purposes only
-            'x': sample_x_all,
-            't': sample_t_all,
-            'y': sample_y_all,
-            'mu': sample_mu_all,
-            's': sample_strength_all,
-            'y_pcf': sample_y_param_all,
-            'mu_pcf': sample_mu_param_all,
-            's_pcf': sample_strength_param_all,
-            'treatment_types': treatment_types  # Whether a treatment is parametric
-        }
+            file_name_modifyer = set_type + ''.join(str(e) for e in treatment_types) + "_" + str(sim)
 
-        # Save all simulation runs for the current data set
-        if config.save_as_numpy:
-            print("Saving to numpy file...")
-            np.save("simulation_outcome." + set_type, to_save)
-        if config.save_as_bin:
-            print("Saving to binary...")
-            def sparsify(vec):
-                sparse_vec = []
-                for i in range(len(vec)):
-                    if vec[i] != 0:
-                        sparse_vec.append((i, vec[i]))
+            # Save as numpy file
+            if config.save_as_numpy:
+                print("Saving to numpy file...")
+                np.save("simulation_outcome." + file_name_modifyer, to_save)
 
+            # Save as binary file
+            if config.save_as_bin:
+                print("Saving to binary...")
 
-            def write2dmatrix(mat, mat_name, set_name):
-                dim0 = mat.shape[0]
-                dim1 = mat.shape[1]
-                n_sim = mat.shape[2]
+                def write2dmatrix(mat, mat_name, file_name_modifyer):
+                    '''Write a 2D matrix to a file.'''
+                    dim0 = mat.shape[0]
+                    dim1 = mat.shape[1]
 
-                for sim in range(n_sim):
-                    with open('simulation_outcome.%s%d.%s' % (set_name, sim, mat_name), 'wb') as binfile:
+                    with open('simulation_outcome.%s.%s' % (file_name_modifyer, mat_name), 'wb') as binfile:
                         header = struct.pack('2I', dim0, dim1)
                         binfile.write(header)
                         for i in range(dim1):
-                            data = struct.pack('%id' % dim0, *mat[:, i, sim])
+                            data = struct.pack('%id' % dim0, *mat[:, i])
                             binfile.write(data)
                         binfile.close()
 
-            x2export = np.stack([sample_strength_all[np.arange(sample_size), sample_t_all[:, i].astype(int), i] for i in
-                                 range(nr_simulations)], 1)
-            x2export = np.concatenate([sample_x_all,
-                                       sample_t_all[:, np.newaxis, :],
-                                       x2export[:, np.newaxis, :]], 1)
-            write2dmatrix(x2export, "x", set_type)
+                # Flatten matrices to 2D for export to binary file
+                x2export = sample_strength[np.arange(sample_size), sample_t.astype(int)]
+                x2export = np.concatenate([sample_x,
+                                           sample_t[:, np.newaxis],
+                                           x2export[:, np.newaxis]], 1)
+                write2dmatrix(x2export, "x", file_name_modifyer)
 
-            y2export = np.stack([sample_y_all[np.arange(sample_size), sample_t_all[:, i].astype(int), i] for i in
-                                 range(nr_simulations)], 1)
-            y2export = y2export[:, np.newaxis, :]
-            write2dmatrix(y2export, "y", set_type)
+                y2export = sample_y[np.arange(sample_size), sample_t.astype(int)]
+                y2export = y2export[:, np.newaxis]
+                write2dmatrix(y2export, "y", file_name_modifyer)
 
-            t_cf = []
-            for treatment in treatment_types:
-                if treatment == 1:
-                    t_cf += [treatment for i in range(nr_cf_samples)]
+                t_cf = []
+                for treatment in treatment_types:
+                    if treatment == 1:
+                        t_cf += [treatment for i in range(nr_cf_samples)]
 
-            t_cf = np.tile(np.array(t_cf * sample_size)[:, np.newaxis, np.newaxis], [1, 1, nr_simulations])
-            xpcf2export = np.concatenate([t_cf, np.reshape(sample_strength_param_all, [-1, 1, nr_simulations])], 1)
-            write2dmatrix(xpcf2export, "xcf", set_type)
+                t_cf = np.array(t_cf * sample_size)[:, np.newaxis]
+                xpcf2export = np.concatenate([t_cf, np.reshape(sample_strength_param, [-1, 1])], 1)
+                write2dmatrix(xpcf2export, "xcf", file_name_modifyer)
 
-            ypcf2export = np.reshape(sample_y_param_all, [-1, 1, nr_simulations])
-            write2dmatrix(ypcf2export, "ycf", set_type)
+                ypcf2export = np.reshape(sample_y_param, [-1, 1])
+                write2dmatrix(ypcf2export, "ycf", file_name_modifyer)
 
-        if config.save_as_tfrecord:
-            continue
-            # TODO: save as tf_record

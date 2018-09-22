@@ -2,7 +2,7 @@ import os
 
 # Simulation
 seed = 0  # Random seed
-k = 30  # Treatment assignment parameter
+k = 10  # Treatment assignment parameter
 C = 50  # Outcome generation parameter
 # Treatment strength generation parameters
 str_const = 2
@@ -12,10 +12,10 @@ nr_documents = 5000  # Nr topics per sample
 sets = ['train', 'test']  # Sets to generate
 nr_simulations = {
     sets[0]: 1,
-    sets[1]: 5
+    sets[1]: 50
 }
-treatment_types = [0, 1]  # List of treatments to simulate. binary = 0, parametric = 1
-nr_cf_samples = 5  # Number of additional counterfactual samples for parametric treatments
+treatment_types = [1] * 3  # List of treatments to simulate. binary = 0, parametric = 1. There will always be a binary "control" group.
+nr_cf_samples = 10  # Number of additional counterfactual samples for parametric treatments
 
 # Preprocessing
 do_lda = True  # Set to false if there already exists a LDA file
@@ -36,7 +36,6 @@ vocab_file = in_path+"vocab."+corpus_name+".txt"
 lda_file = in_path+"lda."+corpus_name+".obj"
 simulation_file = in_path+"simulated_news.csv"
 
-#Saving
+# Saving
 save_as_numpy = True
-save_as_bin = True # Save as binary file that can be read in e.g. with R
-save_as_tfrecord = True
+save_as_bin = True  # Save as binary file that can be read in e.g. with R

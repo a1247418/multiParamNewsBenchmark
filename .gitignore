@@ -55,3 +55,7 @@ output
 *.npy
 *.ipynb
 *.csv
+*.x
+*.xcf
+*.ycf
+*.y
