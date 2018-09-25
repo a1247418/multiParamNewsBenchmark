@@ -269,8 +269,21 @@ if __name__ == '__main__':
 
                 t_cf = np.array(t_cf * sample_size)[:, np.newaxis]
                 xpcf2export = np.concatenate([t_cf, np.reshape(sample_strength_param, [-1, 1])], 1)
-                write2dmatrix(xpcf2export, "xcf", file_name_modifyer)
+                write2dmatrix(xpcf2export, "xpcf", file_name_modifyer)
 
                 ypcf2export = np.reshape(sample_y_param, [-1, 1])
-                write2dmatrix(ypcf2export, "ycf", file_name_modifyer)
+                write2dmatrix(ypcf2export, "ypcf", file_name_modifyer)
 
+                # As binary cf samples don't neatly fit into a matrix shape, save them as vector of:
+                # sample-id, t, s, y for each binary cf sample
+                bin_cf2export = np.array([])
+                for i in range(sample_size):
+                    for t_id, t_type in enumerate([0]+treatment_types):
+                        if t_type == 0 and sample_t[i] != t_id:
+                            bin_cf2export = np.append(bin_cf2export, float(i+1))
+                            bin_cf2export = np.append(bin_cf2export, float(t_id))
+                            bin_cf2export = np.append(bin_cf2export, sample_strength[i, t_id])
+                            bin_cf2export = np.append(bin_cf2export, sample_y[i, t_id])
+
+                bin_cf2export = np.reshape(bin_cf2export, [-1, 1])
+                write2dmatrix(bin_cf2export, "bcf", file_name_modifyer)
