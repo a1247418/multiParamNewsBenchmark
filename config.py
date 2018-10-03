@@ -5,7 +5,6 @@ seed = 0  # Random seed
 k = 10  # Treatment assignment parameter
 C = 50  # Outcome generation parameter
 # Treatment strength generation parameters
-str_const = 2
 str_mean = 0.3
 str_std = 0.05
 nr_documents = 5000  # Nr topics per sample

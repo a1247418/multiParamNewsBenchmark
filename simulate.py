@@ -88,7 +88,7 @@ def sample_treatment_strength(z, centroid_z):
     mu = config.str_mean
     sig = config.str_std
 
-    strength = config.str_const * np.dot(z, centroid_z)
+    strength = np.dot(z, centroid_z)
 
     noise = scipy.stats.truncnorm.rvs((-strength - mu) / sig, (1 - strength - mu) / sig, loc=mu, scale=sig, size=1)
 
