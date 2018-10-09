@@ -7,6 +7,9 @@ import struct
 import numpy as np
 import scipy.stats
 
+import pdb
+
+
 
 def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
     """
@@ -24,15 +27,20 @@ def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
     y = np.zeros(nr_treatments)
 
     if for_treatment is None:
-        mu[0] = 0
-        for i in range(nr_treatments):
-            mu[i] = mu[0] + C * strengths[i] * np.dot(z, centroids[i])
-            y[i] = mu[i] + np.random.normal(0, 1)
+        mu[0] = C * np.dot(z, centroids[0][0])
+        y[0] = mu[0] + np.random.normal(0, 0.2)
+
+        for i in range(1, nr_treatments):
+            dot_prod = np.sqrt(sum([np.dot(z, centroid) for centroid in centroids[i]]))
+            mu[i] = mu[0] + C * (1-np.power(1 - 2*strengths[i], 2)) * dot_prod
+            y[i] = mu[i] + np.random.normal(0, 0.2)
     else:
-        mu0 = C * np.dot(z, centroids[0])
+        mu0 = C * np.dot(z, centroids[0][0])
         for i in range(nr_treatments):
-            mu[i] = mu0 + C * strengths[i] * np.dot(z, centroids[for_treatment])
-            y[i] = mu[i] + np.random.normal(0, 1)
+            dot_prod = np.sqrt(sum([np.dot(z, centroid) for centroid in centroids[for_treatment]]))
+
+            mu[i] = mu0 + C * (1-np.power(1 - 2*strengths[i], 2)) * dot_prod
+            y[i] = mu[i] + np.random.normal(0, 0.2)
 
     return mu, y
 
@@ -77,18 +85,18 @@ def sample_treatment(probability_weights):
     return t_id
 
 
-def sample_treatment_strength(z, centroid_z):
+def sample_treatment_strength(z, centroids_z):
     """
     Returns a nonnegative number [0,1] biased by the dot product of the given vectors.
     :param z: Document vector in topic space
-    :param centroid_z: Treatment centroid in topic space
+    :param centroids_z: Treatment centroids in topic space
     :return: Treatment strength
     """
 
     mu = config.str_mean
     sig = config.str_std
 
-    strength = np.dot(z, centroid_z)
+    strength = np.sqrt( sum([np.dot(z, centroid) for centroid in centroids_z]) )
 
     noise = scipy.stats.truncnorm.rvs((-strength - mu) / sig, (1 - strength - mu) / sig, loc=mu, scale=sig, size=1)
 
@@ -151,16 +159,27 @@ if __name__ == '__main__':
             doc_ids = sorted(random.sample(range(nr_docs), sample_size))
 
             # Sample centroids for each treatment
-            treatment_centroids_z = np.array([z0])
-            treatment_centroids_x = np.array([x0])
+            treatment_centroids_z = [np.array([z0])]
+            treatment_centroids_x = [np.array([x0])]
             for i in range(nr_treatments - 1):  # -1 since z0 is given
-                centroid_id = random.randint(0, nr_docs - 1)
-                # Centroid in topic space
-                centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
-                treatment_centroids_z = np.vstack([treatment_centroids_z, centroid])
-                # Centroid in word space
-                centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
-                treatment_centroids_x = np.vstack([treatment_centroids_x, centroid])
+                treatment_centroids_x.append(np.array([]))
+                treatment_centroids_z.append(np.array([]))
+                for j in range(config.nr_centroids):
+                    centroid_id = random.randint(0, nr_docs - 1)
+                    # Centroid in topic space
+                    centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
+                    if j == 0:
+                        treatment_centroids_z[i+1] = np.append(treatment_centroids_z[i+1], centroid)
+                    else:
+                        treatment_centroids_z[i+1] = np.vstack([treatment_centroids_z[i+1], centroid])
+                    # Centroid in word space
+                    centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
+                    if j == 0:
+                        treatment_centroids_x[i+1] = np.append(treatment_centroids_x[i+1], centroid)
+                    else:
+                        treatment_centroids_x[i+1] = np.vstack([treatment_centroids_x[i+1], centroid])
+
+                first_treatment_centroids_z = np.array([i[0] for i in treatment_centroids_z])
 
             # For each document: get its data vector, treatment assignment, and outcome
             sample_x = np.zeros([sample_size, dim_x])  # Documents in word space; reduced dimensions
@@ -183,7 +202,7 @@ if __name__ == '__main__':
                 z = sparse_to_dense(corpus_z[d], dim_z)
                 sample_z[count] = z
 
-                p = calc_treatment_probability(kappa, z, treatment_centroids_z)
+                p = calc_treatment_probability(kappa, z, first_treatment_centroids_z)
                 t = sample_treatment(p)
 
                 sample_t[count] = t
