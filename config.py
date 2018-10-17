@@ -2,13 +2,13 @@ import os
 
 # Simulation
 seed = 0  # Random seed
-k = 20  # Treatment assignment parameter
+k = 10  # Treatment assignment parameter
 C = 50  # Outcome generation parameter
 # Treatment strength generation parameters
 str_mean = 0.3
 str_std = 0.05
-nr_centroids = 3
-nr_documents = 5000  # Nr topics per sample
+nr_centroids = 1
+nr_documents = 200  # Nr topics per sample
 sets = ['train', 'test']  # Sets to generate
 nr_simulations = {
     sets[0]: 1,

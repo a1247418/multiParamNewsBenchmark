@@ -170,12 +170,16 @@ if __name__ == '__main__':
                     centroid = sparse_to_dense(corpus_z[centroid_id], dim_z)
                     if j == 0:
                         treatment_centroids_z[i+1] = np.append(treatment_centroids_z[i+1], centroid)
+                        if config.nr_centroids == 1:
+                            treatment_centroids_z[i + 1] = [treatment_centroids_z[i+1]]
                     else:
                         treatment_centroids_z[i+1] = np.vstack([treatment_centroids_z[i+1], centroid])
                     # Centroid in word space
                     centroid = sparse_to_dense(corpus_x[centroid_id], dim_x)
                     if j == 0:
                         treatment_centroids_x[i+1] = np.append(treatment_centroids_x[i+1], centroid)
+                        if config.nr_centroids == 1:
+                            treatment_centroids_x[i + 1] = [treatment_centroids_x[i+1]]
                     else:
                         treatment_centroids_x[i+1] = np.vstack([treatment_centroids_x[i+1], centroid])
 
