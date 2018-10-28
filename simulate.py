@@ -250,7 +250,8 @@ if __name__ == '__main__':
                 'treatment_types': treatment_types  # Whether a treatment is parametric
             }
 
-            file_name_modifyer = set_type + ''.join(str(e) for e in treatment_types) + "_" + str(sim)
+            file_name_modifyer = set_type + ''.join(str(e) for e in treatment_types) + "_" + str(sample_size) + "k" + \
+                                 str(kappa) + "_" + str(sim)
 
             # Save as numpy file
             if config.save_as_numpy:
