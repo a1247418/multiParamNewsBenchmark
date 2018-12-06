@@ -10,7 +10,6 @@ import scipy.stats
 import pdb
 
 
-
 def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
     """
     Simulates the outcome for a single unit/treatment pair.
@@ -74,13 +73,7 @@ def sample_treatment(probability_weights):
     """
     assert 0.99 < sum(probability_weights) < 1.01
 
-    nr_treatments = len(probability_weights)
-    rv = random.random()
-
-    t_id = 0
-    for i in range(nr_treatments - 1):
-        if rv >= sum(probability_weights[:i + 1]):
-            t_id = i + 1
+    t_id = np.random.choice(range(len(probability_weights)), p=probability_weights)
 
     return t_id
 
@@ -232,7 +225,6 @@ if __name__ == '__main__':
                         sample_y_param[count, param_idx] = y_pcf
                         sample_mu_param[count, param_idx] = mu_pcf
                         param_idx += 1
-
 
             ''' Save data set '''
             to_save = {
