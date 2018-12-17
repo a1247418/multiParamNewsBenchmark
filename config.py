@@ -2,10 +2,10 @@ import os
 
 # Simulation
 seed = 0  # Random seed
-k = 15  # Treatment assignment parameter
+k = 1  # Treatment assignment parameter
 C = 50  # Outcome generation parameter
 # Treatment strength generation parameters
-str_mean = 0.3
+str_mean = 0.1
 str_std = 0.05
 nr_centroids = 1  # Nr of centroids per treatment - experimental; leave at 1
 nr_documents = 7000  # Nr topics per sample

@@ -10,6 +10,13 @@ import scipy.stats
 import pdb
 
 
+def dot_norm(v, w):
+    v_n = v/np.linalg.norm(v)
+    w_n = w/np.linalg.norm(w)
+    value = np.dot(v_n, w_n)
+    return value
+
+
 def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
     """
     Simulates the outcome for a single unit/treatment pair.
@@ -26,17 +33,17 @@ def simulate_outcomes(C, z, centroids, strengths, for_treatment=None):
     y = np.zeros(nr_treatments)
 
     if for_treatment is None:
-        mu[0] = C * np.dot(z, centroids[0][0])
+        mu[0] = C * dot_norm(z, centroids[0][0])
         y[0] = mu[0] + np.random.normal(0, 0.2)
 
         for i in range(1, nr_treatments):
-            dot_prod = np.sqrt(sum([np.dot(z, centroid) for centroid in centroids[i]]))
+            dot_prod = np.sqrt(sum([dot_norm(z, centroid) for centroid in centroids[i]]))
             mu[i] = mu[0] + C * (1-np.power(1 - 2*strengths[i], 2)) * dot_prod
             y[i] = mu[i] + np.random.normal(0, 0.2)
     else:
-        mu0 = C * np.dot(z, centroids[0][0])
+        mu0 = C * dot_norm(z, centroids[0][0])
         for i in range(nr_treatments):
-            dot_prod = np.sqrt(sum([np.dot(z, centroid) for centroid in centroids[for_treatment]]))
+            dot_prod = np.sqrt(sum([dot_norm(z, centroid) for centroid in centroids[for_treatment]]))
 
             mu[i] = mu0 + C * (1-np.power(1 - 2*strengths[i], 2)) * dot_prod
             y[i] = mu[i] + np.random.normal(0, 0.2)
@@ -56,7 +63,7 @@ def calc_treatment_probability(k, z, centroids):
     term = np.zeros([nr_treatments], dtype=np.float64)
 
     for i in range(nr_treatments):
-        term[i] = np.power(np.e, k * np.dot(z, centroids[i]))
+        term[i] = np.power(np.e, k * dot_norm(z, centroids[i]))
 
     p = np.zeros([nr_treatments])
     for i in range(nr_treatments):
@@ -71,7 +78,7 @@ def sample_treatment(probability_weights):
     :param probability_weights: Vector of weights summing to 1.
     :return: Treatment ID
     """
-    assert 0.99 < sum(probability_weights) < 1.01
+    #assert 0.99 < sum(probability_weights) < 1.01
 
     t_id = np.random.choice(range(len(probability_weights)), p=probability_weights)
 
@@ -89,7 +96,7 @@ def sample_treatment_strength(z, centroids_z):
     mu = config.str_mean
     sig = config.str_std
 
-    strength = np.sqrt( sum([np.dot(z, centroid) for centroid in centroids_z]) )
+    strength = np.sqrt( sum([dot_norm(z, centroid) for centroid in centroids_z]) )
 
     noise = scipy.stats.truncnorm.rvs((-strength - mu) / sig, (1 - strength - mu) / sig, loc=mu, scale=sig, size=1)
 
