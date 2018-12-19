@@ -2,24 +2,24 @@ import os
 
 # Simulation
 seed = 0  # Random seed
-k = 1  # Treatment assignment parameter
+k = 8 # Treatment assignment bias parameter (0 = no bias)
 C = 50  # Outcome generation parameter
-# Treatment strength generation parameters
+# Treatment strength/dose generation parameters
 str_mean = 0.1
 str_std = 0.05
 nr_centroids = 1  # Nr of centroids per treatment - experimental; leave at 1
-nr_documents = 7000  # Nr topics per sample
-sets = ['train', 'test']  # Sets to generate
-nr_simulations = {
+nr_documents = 7000  # Nr topics per sample (this is the number of simulated datapoints)
+sets = ['train', 'test']  # Dataset names to generate
+nr_simulations = { # Number of datasets to generate for each dataset
     sets[0]: 1,
     sets[1]: 10
 }
-treatment_types = [1] * 3  # List of treatments to simulate. binary = 0, parametric = 1. There will always be a binary "control" group.
+treatment_types = [1] * 3  # Treatment options to simulate. binary = 0, parametric = 1. There will always be a binary "control" group.
 nr_cf_samples = 10  # Number of additional counterfactual samples for parametric treatments
 
 # Preprocessing
-do_lda = True  # Set to false if there already exists a LDA file
-nr_topics = 50  # Dimensionality of z space
+do_lda = True  # Set to false if there already exists a LDA file you want to reuse
+nr_topics = 50  # Dimensionality of topic space space
 nr_top_words_per_topic = 100  # The number of top words to keep in the dictionary for each topic
 normalize_outputs = False  # Normalize x and z
 
