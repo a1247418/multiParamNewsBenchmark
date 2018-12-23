@@ -3,17 +3,17 @@
 This repository hosts a semi-synthetic benchmark based on the UCI NY-Times corpus (Newman, 2008) and the simulation described in 
 "Learning Representations for Counterfactual Inference"[1].
 
-The benchmark realizes an arbitrary number of binary or parametric 
+The benchmark realizes an arbitrary number of binary or parametric (continuous)
 treatment options. Its covariates are based on real-world data, but the 
 treatment assignments and outcomes are simulated.
 
 ## BEFORE RUNNING
-Before simulating the data, you need to download the NY Times corpus ( https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/ ) 
-and place it in the 'data' folder.
+Before simulating the data, you need to **download the NY Times corpus** ( https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/ ) 
+and place it in the 'data' folder. Download both the docword and vocab file.
 
 ## How to run
-After downloading the corpus, run preprocess.py to generate an LDA representation of the data.<br />
-Then run simulate.py to generate the simulated dataset.<br />
+After downloading the corpus, **run preprocess.py** to generate an LDA representation of the data.<br />
+Then **run simulate.py** to generate the simulated dataset.<br />
 The jupyter notebook analysis.ipynb is provided as a starting point to explore the dataset.<br />
 The config.py file contains options for the simulation process. Among others, how many treatments should be simulated and how many datasets should be created.<br />
 
@@ -35,7 +35,7 @@ To be able to calculate a more accurate counterfactual error for the parametric 
 	's_pcf': 		Uniform random numbers in [0,1]. [n_samples, n_parametric_treatments, n_additional_samples]<br /><br />
 In general, you only need x,t,y,s,y_pcf, and s_pcf to train and evaluate your model.<br />
 
-Note: Currently the data is also saved in binary format. To this end, multi-dimensional matrices are flattened to 2d and the format changes - using this option
+Note: Currently the data can also be saved in binary format. To this end, multi-dimensional matrices are flattened to 2D and the format changes - using this option
 is so far not recommended.<br />
 
 ## Generation process
