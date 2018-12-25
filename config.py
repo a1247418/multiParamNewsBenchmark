@@ -2,25 +2,25 @@ import os
 
 # Simulation
 seed = 0  # Random seed
-k = 8 # Treatment assignment bias parameter (0 = no bias)
+k = 15 # Treatment assignment bias parameter (0 = no bias)
 C = 50  # Outcome generation parameter
 # Treatment strength/dose generation parameters
 str_mean = 0.1
 str_std = 0.05
-nr_centroids = 1  # Nr of centroids per treatment - experimental; leave at 1
-nr_documents = 7000  # Nr topics per sample (this is the number of simulated datapoints)
+out_std = 5
+n_documents = 7000  # Nr topics per sample (this is the number of simulated datapoints)
 sets = ['train', 'test']  # Dataset names to generate
-nr_simulations = { # Number of datasets to generate for each dataset
+n_simulations = {  # Number of datasets to generate for each dataset
     sets[0]: 1,
-    sets[1]: 10
+    sets[1]: 1
 }
-treatment_types = [1] * 3  # Treatment options to simulate. binary = 0, parametric = 1. There will always be a binary "control" group.
-nr_cf_samples = 10  # Number of additional counterfactual samples for parametric treatments
+treatment_types = [0] + [1] * 3  # Treatment options to simulate. binary = 0, parametric = 1
+n_cf_samples = 10  # Number of additional counterfactual samples for parametric treatments
 
 # Preprocessing
 do_lda = True  # Set to false if there already exists a LDA file you want to reuse
-nr_topics = 50  # Dimensionality of topic space space
-nr_top_words_per_topic = 100  # The number of top words to keep in the dictionary for each topic
+n_topics = 50  # Dimensionality of topic space space
+n_top_words_per_topic = 100  # The number of top words to keep in the dictionary for each topic
 normalize_outputs = False  # Normalize x and z
 
 # Paths
@@ -38,4 +38,4 @@ simulation_file = in_path+"simulated_news.csv"
 
 # Saving
 save_as_numpy = True
-save_as_bin = True  # Save as binary file that can be read in e.g. with R
+save_as_bin = True  # Save as binary file
